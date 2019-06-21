@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.Json;
@@ -15,6 +16,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.ext.healthchecks.HealthCheckHandler;
+import io.vertx.ext.healthchecks.Status;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.StaticHandler;
@@ -51,6 +54,7 @@ public class HttpApplication extends AbstractVerticle {
         router.get("/g/responders/lastrun").handler(this::lastRunResponders);
         router.get("/*").handler(StaticHandler.create());
 
+        Future<Void> httpServerFuture = Future.future();
         // Create the HTTP server and pass the "accept" method to the request handler.
         vertx
                 .createHttpServer()
@@ -61,8 +65,34 @@ public class HttpApplication extends AbstractVerticle {
                             if (ar.succeeded()) {
                                 log.info("Server started on port " + ar.result().actualPort());
                             }
-                            future.complete();
+                            httpServerFuture.complete();
                         });
+
+        Router mgmtRouter = Router.router(vertx);
+        HealthCheckHandler healthCheckHandler = HealthCheckHandler.create(vertx)
+                .register("health", f -> f.complete(Status.OK()));
+        mgmtRouter.get("/health").handler(healthCheckHandler);
+
+        Future<Void> managementServerFuture = Future.future();
+        vertx.createHttpServer()
+                .requestHandler(mgmtRouter)
+                .listen(config().getInteger("management.port"), ar -> {
+                    if (ar.succeeded()) {
+                        managementServerFuture.complete();
+                        log.info("Management Http Server Listening on: "+ ar.result().actualPort());
+                    } else {
+                        managementServerFuture.fail(ar.cause());
+                    }
+                });
+
+        CompositeFuture.all(httpServerFuture, managementServerFuture).setHandler(ar -> {
+            if (ar.succeeded()) {
+                future.complete();
+            } else {
+                future.fail(ar.cause());
+            }
+        });
+
         if(isDryRun)
             log.info("CHECK ConfigMap: running in Dry Run mode!! is.dryrun="+isDryRun);
 
