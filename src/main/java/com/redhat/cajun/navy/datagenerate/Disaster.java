@@ -1,5 +1,6 @@
 package com.redhat.cajun.navy.datagenerate;
 
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -24,7 +25,9 @@ public class Disaster {
         Victim v = new Victim();
         v.setVictimName(fullNames.getNextFullName());
 
-        Waypoint point = boundingPolygons.getInternalWaypoint();
+        Point2D.Double d = Incidents.incident();
+        Waypoint point = new Waypoint(d.getY(), d.getX());
+
         v.setLatLon(point.getY(),point.getX());
 
         v.setVictimPhoneNumber(GeneratePhoneNumbers.getNextPhoneNumber());
@@ -44,7 +47,8 @@ public class Disaster {
 
     public Responder generateResponder() {
         Responder responder = new Responder();
-        Waypoint point = boundingPolygons.getInternalWaypoint();
+        Point2D.Double d = Responders.responder();
+        Waypoint point = new Waypoint(d.getY(), d.getX());
         responder.setName(fullNames.getNextFullName());
         responder.setPhoneNumber(GeneratePhoneNumbers.getNextPhoneNumber());
         responder.setBoatCapacity(biasedRandom(1, 12, 0.5));
